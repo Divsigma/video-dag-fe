@@ -23,6 +23,15 @@ export default {
       uploadSuccess: false,
       sendUrl: "",
       isSubmit: false,
+
+      servicesList: ["face_detection", "face_alignment"],
+      currService: null,
+
+      selectedIp: null,
+      selectedVideoId: null,
+      pipeline: [],
+      delayCons: null,
+      accCons: null
     };
   },
   methods: {
@@ -32,6 +41,10 @@ export default {
       this.selected = item.key;
       const ip = item.key.split("-")[0];
       const videoId = item.key.split("-")[1];
+
+      this.selectedIp = ip;
+      this.selectedVideoId = videoId;
+
       this.inputText = `{
     "node_addr": "${ip}",
     "video_id": ${videoId},
@@ -46,7 +59,19 @@ export default {
 
       // console.log(this.sendUrl)
     },
+    errHandler(err) {
+      console.error(error);
+      sessionStorage.clear();
+      // Update submit_jobs array
+      this.submit_jobs = [];
+      // Update sessionStorage
+      sessionStorage.setItem(
+        "submit_jobs",
+        JSON.stringify(this.submit_jobs)
+      );
+    },
     getInfo() {
+      // 获取各节点视频流信息
       fetch("/dag/node/get_video_info")
         .then((response) => response.json())
         .then((data) => {
@@ -54,20 +79,49 @@ export default {
           this.info = data;
         })
         .catch((error) => {
-          console.error(error);
-          sessionStorage.clear();
-          // Update submit_jobs array
-          this.submit_jobs = [];
-          // Update sessionStorage
-          sessionStorage.setItem(
-            "submit_jobs",
-            JSON.stringify(this.submit_jobs)
-          );
+          errHandler(error);
         });
+      
+      // 获取计算服务信息
+      fetch("/serv/get_service_list").then((resp) => resp.json()).then((data) => {
+        this.servicesList = data
+      }).catch((err) => {
+        errHandler(err);
+      })
     },
+
+    append2Pipeline(servName) {
+      console.log(servName);
+      this.pipeline.push(servName);
+    },
+
     submitText() {
-      let text = this.inputText.replace(/[\r\n\s]/g, ""); // remove all newlines and spaces
+      // 根据变量构造请求
+      // this.inputText = `{
+      //   "node_addr": "${this.selectedIp}",
+      //   "video_id": ${this.selectedVideoId},
+      //   "pipeline": ${this.pipeline},
+      //   "user_constraint": {
+      //     "delay": ${this.delayCons},
+      //     "accuracy": ${this.accCons}
+      //   }
+      // }`;
+      this.inputText = {
+        "node_addr": this.selectedIp,
+        "video_id": parseInt(this.selectedVideoId),
+        "pipeline": this.pipeline,
+        "user_constraint": {
+          "delay": parseFloat(this.delayCons),
+          "accuracy": parseFloat(this.accCons)
+        }
+      };
+
+      // let text = this.inputText.replace(/[\r\n\s]/g, ""); // remove all newlines and spaces
+      let text = JSON.stringify(this.inputText)
+
       // console.log(JSON.stringify(text))
+      console.log(text)
+
       fetch(this.sendUrl, {
         method: "POST",
         headers: {
@@ -87,20 +141,23 @@ export default {
               JSON.stringify(this.submit_jobs)
             );
           }
+
+          // 将 submit_jobs 存储在 sessionStorage 中
           this.submit_jobs.push(data.query_id);
           console.log(this.submit_jobs);
           sessionStorage.setItem(
             "submit_jobs",
             JSON.stringify(this.submit_jobs)
-          ); // 将 submit_jobs 存储在 sessionStorage 中
+          ); 
 
+          // 设置交互信息
           this.uploadSuccess = true;
           this.isSubmit = true;
           ElMessage({
             message: "上传成功",
             showClose: true,
             type: "success",
-            duration: 1500,
+            duration: 3000,
           });
         })
         .catch((error) => {
@@ -111,6 +168,7 @@ export default {
       // console.log(JSON.stringify(text) )
     },
   },
+
   mounted() {
     const submitJobs = sessionStorage.getItem("submit_jobs");
     if (submitJobs) {
@@ -165,45 +223,33 @@ export default {
     <div style="width: 5%"></div>
 
     <div style="width: 45%">
-      <el-input
-        v-model="inputText"
-        type="textarea"
-        :rows="20"
-        :cols="30"
-      ></el-input>
+      <!-- <el-input v-model="inputText" type="textarea" :rows="20" :cols="30"></el-input> -->
+
       <div>
-        <div
-          style="
-            display: inline-block;
-            text-align: right;
-            margin-top: 20px;
-            margin-right: 20px;
-          "
-        >
+        <div>
+          已选视频流：节点“{{ selectedIp }}”的摄像头{{ selectedVideoId }}
+        </div>
+        <div>
+          已选查询流：{{ pipeline }}
+          <div>
+            <el-radio v-for="(servName, idx) in servicesList" v-model="currService" :label="servName" @change.native="append2Pipeline(servName)">
+              {{ servName }}
+            </el-radio>
+          </div>
+        </div>
+        <div style="display: flex; height: min-content; white-space: nowrap; padding: 10px;">
+          时延约束（秒）：<el-input v-model="delayCons"></el-input>
+          精度约束（F1-Score∈[0,1]）：<el-input v-model="accCons"></el-input>
+        </div>
+      </div>
+
+      <div>
+        <div style="display: inline-block; text-align: right; margin-top: 20px; margin-right: 20px;">
           <el-button type="primary" plain @click="submitText">Submit</el-button>
         </div>
-
-        <!-- <div style="display: inline-block; margin-left: 20px">
-          <el-alert
-            v-if="uploadSuccess && isSubmit"
-            style="margin-top: 20px; max-width: 500px"
-            title="上传成功"
-            type="success"
-            show-icon
-            :closable="true"
-            :duration="2000"
-          ></el-alert>
-          <el-alert
-            v-if="!uploadSuccess && isSubmit"
-            style="margin-top: 20px; max-width: 500px"
-            title="上传失败"
-            type="error"
-            show-icon
-            :closable="true"
-            :duration="2000"
-          ></el-alert>
-        </div> -->
       </div>
+
+
     </div>
   </div>
   <!-- </div> -->

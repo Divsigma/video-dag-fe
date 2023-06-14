@@ -353,7 +353,7 @@ export default {
     // this.initChart();
     this.timer = setInterval(() => {
       this.updateResultUrl();
-    }, 10000);
+    }, 3000);
   },
   methods: {
     initChart() {
