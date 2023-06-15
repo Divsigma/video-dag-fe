@@ -96,12 +96,12 @@
                     <div class="info-h2-flex-text-items" v-else>边端</div>
 
                     <div class="info-h2-flex-text-items">
-                      CPU：{{ value["n_cpu"] }}核（已占用{{ value["cpu_ratio"] }}）
+                      GPU：{{ value["n_cpu"] }}核（已占用{{ value["cpu_ratio"] }}）
                     </div>
-
+<!-- 
                     <div class="info-h2-flex-text-items">
                       内存：{{ value["mem"] }}MB（已占用{{ value["mem_ratio"] }}%）
-                    </div>
+                    </div> -->
                   </div>
               </div>
             </div>
@@ -217,6 +217,7 @@ export default {
       submit_job: "",
       result: null,
       resultUrl: "/dag/query/get_agg_info/",
+      resourceUrl: "/serv/get_cluster_info",
       // loading: "Loading...",
       intervalId: null,
       timer: null,
@@ -230,7 +231,7 @@ export default {
       encoder_type_list: [],
       fps_type_list: [],
       resolution_type_list: [],
-      delay_cons: 0.3,
+      delay_cons: 0.1,
       acc_cons: 0.8,
       cons_url: "/dag/user/submit_job_user_constraint",
       // chartData: [],
@@ -353,6 +354,7 @@ export default {
     // this.initChart();
     this.timer = setInterval(() => {
       this.updateResultUrl();
+      this.updateResourceUrl();
     }, 3000);
   },
   methods: {
@@ -488,7 +490,7 @@ export default {
           this.showChart = true;
         })
         .catch((error) => {
-          console.error(error);
+          console.log(error);
           loading.close();
           ElMessage({
             showClose: true,
@@ -498,6 +500,16 @@ export default {
           });
           this.result = null;
         });
+    },
+
+    updateResourceUrl() {
+      const url = this.resourceUrl;
+      fetch(url).then((resp) => resp.json()).then((data) => {
+        // console.log(data);
+        this.cluster_info = data;
+      }).catch((err) => {
+        console.log(err);
+      });
     },
 
     // submit user constraint
@@ -557,6 +569,8 @@ export default {
             return ["目标数量", value];
           } else if (key === "obj_size") {
             return ["目标大小", value];
+          } else if (key === "obj_stable") {
+            return ["场景稳定性", value]
           } else {
             return [key, value];
           }
